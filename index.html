@@ -195,8 +195,12 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 /* =====================================================================
    CONFIG
 ===================================================================== */
-const CENTRO = [-20.2932, -40.2963]; // Praia do Canto, Vitória/ES
-const ZOOM_INICIAL = 15;
+/* CENTRO/ZOOM_INICIAL abaixo são só o fallback usado quando ainda não há
+   nenhum registro (mapa vazio) — assim que existem dados, o mapa se ajusta
+   sozinho (fitBounds) para enquadrar todos os pontos, de qualquer bairro,
+   sem precisar travar a visão em nenhum ponto fixo. */
+const CENTRO_PADRAO = [-20.2932, -40.2963]; // Praia do Canto, só como fallback
+const ZOOM_PADRAO = 13; // visão um pouco mais aberta que antes, cobre boa parte da ilha
 
 let TODOS_OS_PONTOS = []; // populado pelo fetch() dos dados reais, abaixo
 let RESOLUCAO_ATUAL = 9;
@@ -205,7 +209,7 @@ let RESOLUCAO_ATUAL = 9;
    MAPA BASE (Leaflet + tiles escuros)
 ===================================================================== */
 const mapa = L.map("mapa", { zoomControl: true, scrollWheelZoom: true })
-  .setView(CENTRO, ZOOM_INICIAL);
+  .setView(CENTRO_PADRAO, ZOOM_PADRAO);
 
 L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
   attribution: '&copy; OpenStreetMap &copy; CARTO',
@@ -328,12 +332,32 @@ function hexParaRgb(hex){
   return [parseInt(hex.substring(0,2),16), parseInt(hex.substring(2,4),16), parseInt(hex.substring(4,6),16)];
 }
 
+/* =====================================================================
+   Auto-fit: ajusta a visão do mapa para enquadrar todos os pontos
+   atualmente visíveis (respeitando o filtro de período ativo), não
+   importa o bairro. Roda depois de carregar dados e depois de trocar
+   o filtro de período — não roda ao trocar só a granularidade, para
+   não "pular" o mapa toda vez que o usuário mexe na resolução H3.
+===================================================================== */
+let primeiroCarregamento = true;
+function ajustarVisaoAosPontos(pontos) {
+  if (pontos.length === 0) {
+    if (primeiroCarregamento) mapa.setView(CENTRO_PADRAO, ZOOM_PADRAO);
+    return;
+  }
+  const limites = L.latLngBounds(pontos.map(p => [p.lat, p.lng]));
+  mapa.fitBounds(limites, { padding: [60, 60], maxZoom: 16 });
+}
+
 function renderizarHexagonos(resolucao) {
   RESOLUCAO_ATUAL = resolucao;
   camadaHexagonos.clearLayers();
   camadaRotulos.clearLayers();
 
   const pontos = pontosFiltrados();
+
+  ajustarVisaoAosPontos(pontos);
+  primeiroCarregamento = false;
 
   document.getElementById("legenda-periodo-ativo").textContent = rotuloPeriodoAtivo();
 
