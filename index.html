@@ -202,7 +202,7 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 const CENTRO_PADRAO = [-20.2932, -40.2963]; // Praia do Canto, só como fallback
 const ZOOM_PADRAO = 13; // visão um pouco mais aberta que antes, cobre boa parte da ilha
 
-let TODOS_OS_PONTOS = []; // populado pelo fetch() dos dados reais, abaixo
+let DADOS_API_ATUAIS = { cells: [], totalEvents: 0 };
 let RESOLUCAO_ATUAL = 9;
 
 /* =====================================================================
@@ -333,158 +333,109 @@ function hexParaRgb(hex){
 }
 
 /* =====================================================================
-   Auto-fit: ajusta a visão do mapa para enquadrar todos os pontos
-   atualmente visíveis (respeitando o filtro de período ativo), não
-   importa o bairro. Roda depois de carregar dados e depois de trocar
-   o filtro de período — não roda ao trocar só a granularidade, para
-   não "pular" o mapa toda vez que o usuário mexe na resolução H3.
+   Renderização de células agregadas recebidas da API privada.
+   O navegador nunca recebe latitude, longitude ou endereço individuais.
 ===================================================================== */
 let primeiroCarregamento = true;
-function ajustarVisaoAosPontos(pontos) {
+function ajustarVisaoAosHexagonos(celulas) {
+  const pontos = celulas.flatMap(c => (c.boundary || []).map(([lng, lat]) => [lat, lng]));
   if (pontos.length === 0) {
     if (primeiroCarregamento) mapa.setView(CENTRO_PADRAO, ZOOM_PADRAO);
     return;
   }
-  const limites = L.latLngBounds(pontos.map(p => [p.lat, p.lng]));
-  mapa.fitBounds(limites, { padding: [60, 60], maxZoom: 16 });
+  mapa.fitBounds(L.latLngBounds(pontos), { padding: [60, 60], maxZoom: 16 });
 }
 
-function renderizarHexagonos(resolucao) {
-  RESOLUCAO_ATUAL = resolucao;
+function renderizarHexagonos(celulas, totalEventos) {
   camadaHexagonos.clearLayers();
   camadaRotulos.clearLayers();
-
-  const pontos = pontosFiltrados();
-
-  ajustarVisaoAosPontos(pontos);
+  ajustarVisaoAosHexagonos(celulas);
   primeiroCarregamento = false;
-
   document.getElementById("legenda-periodo-ativo").textContent = rotuloPeriodoAtivo();
 
-  if (pontos.length === 0) {
+  if (celulas.length === 0) {
     document.getElementById("stat-total").textContent = "0";
     document.getElementById("stat-hexagonos").textContent = "0";
     document.getElementById("stat-pico").textContent = "—";
     document.getElementById("legenda-max").textContent = "—";
     document.getElementById("detalhe-lista").innerHTML =
-      `<div class="detalhe-vazio">${TODOS_OS_PONTOS.length === 0 ? "Nenhum registro ainda." : "Nenhum registro nesse período."}</div>`;
+      `<div class="detalhe-vazio">Nenhum registro nesse período.</div>`;
     return;
   }
 
-  // 1. agrega cada ponto na célula H3 correspondente, guardando também
-  //    a data mais recente já vista naquela célula
-  const contagemPorCelula = {};
-  const ultimaDataPorCelula = {};
-  pontos.forEach(p => {
-    const celula = h3.latLngToCell(p.lat, p.lng, resolucao);
-    contagemPorCelula[celula] = (contagemPorCelula[celula] || 0) + 1;
-    if (p.data && (!ultimaDataPorCelula[celula] || p.data > ultimaDataPorCelula[celula])) {
-      ultimaDataPorCelula[celula] = p.data;
-    }
+  const maxContagem = Math.max(...celulas.map(c => c.count));
+  celulas.slice().sort((a, b) => b.count - a.count).forEach(celula => {
+    const contagem = celula.count;
+    const cor = corPorIntensidade(contagem, maxContagem);
+    const limites = (celula.boundary || []).map(([lng, lat]) => [lat, lng]);
+    const poligono = L.polygon(limites, {
+      pane: "heatPane", color: cor, weight: 0, fillColor: cor, fillOpacity: 0.85
+    }).addTo(camadaHexagonos);
+
+    poligono.bindTooltip(
+      `<div class="hex-tooltip"><strong>${contagem}</strong> registro${contagem > 1 ? 's' : ''}` +
+      `<span class="quando">célula H3 ${celula.h3Cell.slice(0, 8)}…</span></div>`,
+      { sticky: true }
+    );
+
+    const [centroLng, centroLat] = h3.cellToLatLng(celula.h3Cell);
+    const rotulo = L.divIcon({ className: "hex-label", html: `<span>${contagem}</span>`, iconSize: [26, 26] });
+    L.marker([centroLng, centroLat], { icon: rotulo, interactive: false }).addTo(camadaRotulos);
   });
 
-  const celulas = Object.keys(contagemPorCelula);
-  const maxContagem = Math.max(...celulas.map(c => contagemPorCelula[c]));
-
-  // 2. desenha cada célula (no pane com desfoque) + rótulo numérico nítido por cima
-  celulas
-    .sort((a, b) => contagemPorCelula[b] - contagemPorCelula[a])
-    .forEach(celula => {
-      const contagem = contagemPorCelula[celula];
-      const limites = h3.cellToBoundary(celula);
-      const cor = corPorIntensidade(contagem, maxContagem);
-
-      const poligono = L.polygon(limites, {
-        pane: "heatPane",
-        color: cor,
-        weight: 0,
-        fillColor: cor,
-        fillOpacity: 0.85
-      }).addTo(camadaHexagonos);
-
-      poligono.bindTooltip(
-        `<div class="hex-tooltip"><strong>${contagem}</strong> registro${contagem > 1 ? 's' : ''}` +
-        `<span class="quando">último: ${formatarDataCurta(ultimaDataPorCelula[celula])}</span></div>`,
-        { sticky: true }
-      );
-
-      const [centroLat, centroLng] = h3.cellToLatLng(celula);
-      const rotulo = L.divIcon({
-        className: "hex-label",
-        html: `<span>${contagem}</span>`,
-        iconSize: [26, 26]
-      });
-      L.marker([centroLat, centroLng], { icon: rotulo, interactive: false }).addTo(camadaRotulos);
-    });
-
-  // 3. atualiza o placar
-  document.getElementById("stat-total").textContent = pontos.length;
+  document.getElementById("stat-total").textContent = totalEventos;
   document.getElementById("stat-hexagonos").textContent = celulas.length;
   document.getElementById("stat-pico").textContent = maxContagem;
   document.getElementById("legenda-max").textContent = maxContagem;
 
-  // 4. atualiza o painel de detalhe por hexágono (ordenado do mais quente pro mais frio)
   const listaEl = document.getElementById("detalhe-lista");
   listaEl.innerHTML = "";
-  celulas
-    .sort((a, b) => contagemPorCelula[b] - contagemPorCelula[a])
-    .forEach(celula => {
-      const contagem = contagemPorCelula[celula];
-      const item = document.createElement("div");
-      item.className = "detalhe-item";
-      item.innerHTML = `
-        <div><span class="qtd">${contagem}</span> registro${contagem > 1 ? 's' : ''} — célula ${celula.slice(0,8)}…</div>
-        <div class="quando">último: ${formatarDataCurta(ultimaDataPorCelula[celula])}</div>
-      `;
-      listaEl.appendChild(item);
-    });
+  celulas.slice().sort((a, b) => b.count - a.count).forEach(celula => {
+    const item = document.createElement("div");
+    item.className = "detalhe-item";
+    item.innerHTML = `<div><span class="qtd">${celula.count}</span> registro${celula.count > 1 ? 's' : ''} — célula ${celula.h3Cell.slice(0, 8)}…</div>`;
+    listaEl.appendChild(item);
+  });
 }
 
 /* =====================================================================
-   Busca o arquivo de dados reais publicado pelo Apps Script.
+   Busca agregações H3 na API do backend.
 ===================================================================== */
 async function carregarDadosReais() {
   try {
-    const resp = await fetch("dados/registros.json?t=" + Date.now());
-    if (!resp.ok) throw new Error("Arquivo de dados ainda não publicado");
-    const dados = await resp.json();
-    TODOS_OS_PONTOS = (dados.pontos || []).map(p => ({
-      lat: p.lat,
-      lng: p.lng,
-      tipo: p.tipo || "",
-      data: parseDataFlexivel(p.data)
-    }));
-    if (dados.atualizado_em) {
-      const el = document.querySelector(".legenda-nota");
-      if (el) {
-        const dataFmt = new Date(dados.atualizado_em).toLocaleString("pt-BR");
-        el.insertAdjacentHTML("afterend",
-          `<div style="font-family:var(--mono);font-size:.62rem;color:#5a564d;margin-top:6px;">Atualizado em ${dataFmt}</div>`);
-      }
-    }
+    const resolucao = RESOLUCAO_ATUAL;
+    const [inicio, fim] = obterIntervaloAtivo();
+    const params = new URLSearchParams({ resolution: String(resolucao) });
+    if (inicio) params.set("from", inicio.toISOString());
+    if (fim) params.set("to", fim.toISOString());
+
+    const resp = await fetch(`https://piscouaqui-backend.onrender.com/api/public/events?${params.toString()}`);
+    if (!resp.ok) throw new Error("API pública indisponível");
+    DADOS_API_ATUAIS = await resp.json();
+    renderizarHexagonos(DADOS_API_ATUAIS.cells || [], DADOS_API_ATUAIS.totalEvents || 0);
   } catch (erro) {
-    console.warn("Sem dados publicados ainda:", erro.message);
-    TODOS_OS_PONTOS = [];
+    console.warn("Sem dados na API:", erro.message);
+    DADOS_API_ATUAIS = { cells: [], totalEvents: 0 };
+    renderizarHexagonos([], 0);
   }
-  renderizarHexagonos(RESOLUCAO_ATUAL);
 }
 
 carregarDadosReais();
 
 document.getElementById("resolucao").addEventListener("change", (e) => {
-  renderizarHexagonos(parseInt(e.target.value, 10));
+  RESOLUCAO_ATUAL = parseInt(e.target.value, 10); carregarDadosReais();
 });
 
 document.getElementById("periodo").addEventListener("change", (e) => {
   const customEl = document.getElementById("periodo-custom");
   customEl.style.display = e.target.value === "custom" ? "flex" : "none";
   if (e.target.value !== "custom") {
-    renderizarHexagonos(RESOLUCAO_ATUAL);
+    carregarDadosReais();
   }
 });
 
 document.getElementById("aplicar-periodo").addEventListener("click", () => {
-  renderizarHexagonos(RESOLUCAO_ATUAL);
+  carregarDadosReais();
 });
 </script>
 </body>
