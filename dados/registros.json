@@ -1,12 +1,18 @@
 {
-  "atualizado_em": "2026-08-20T18:48:53.168Z",
-  "total": 22,
+  "atualizado_em": "2026-08-20T18:50:13.827Z",
+  "total": 23,
   "pontos": [
     {
       "lat": -20.298,
       "lng": -40.293,
       "tipo": "oscilacao",
       "data": "2026-07-27T22:19:53.000Z"
+    },
+    {
+      "lat": -20.3,
+      "lng": -40.295,
+      "tipo": "oscilacao",
+      "data": "2026-08-20T18:49:41.000Z"
     },
     {
       "lat": -20.297,
