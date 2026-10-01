@@ -199,11 +199,12 @@ const map = L.map('mapa', {
 
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-// NOVA URL DO MAPA ESCURO GRATUITO DA STADIA MAPS (Substituindo a antiga chave da Carto)
-L.tileLayer('https://stadiamaps.com{z}/{x}/{y}{r}.png', {
+// MAPA ESCURO GRATUITO E SÉRIO (Sem necessidade de chaves de API)
+L.tileLayer('https://{s}://{z}/{x}/{y}{r}.png', {
     maxZoom: 20,
-    attribution: '&copy; <a href="https://stadiamaps.com">Stadia Maps</a>, &copy; <a href="https://openmaptiles.org">OpenMapTiles</a> &copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+    attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors &copy; <a href="https://carto.com">CARTO</a>'
 }).addTo(map);
+
 
 // Cria o painel próprio para os hexágonos aplicarem o filtro de blur de calor sem afetar as fontes
 map.createPane('heatPane');
