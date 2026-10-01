@@ -140,25 +140,24 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 const CENTRO = [-20.2932, -40.2963]; 
 const ZOOM_INICIAL = 15;
 
-// Estrutura de dados original corrigida incluindo cronologia para o filtro de Período funcionar
 const agora = new Date();
 const pontosOriginais = [
-  { coord: [-20.2921, -40.2985], data: new Date(agora.getTime() - 2 * 60 * 60 * 1000) }, // 2h atrás
-  { coord: [-20.2923, -40.2981], data: new Date(agora.getTime() - 4 * 60 * 60 * 1000) }, // 4h atrás
-  { coord: [-20.2919, -40.2989], data: new Date(agora.getTime() - 10 * 60 * 60 * 1000) }, // 10h atrás
-  { coord: [-20.2925, -40.2983], data: new Date(agora.getTime() - 22 * 60 * 60 * 1000) }, // 22h atrás
-  { coord: [-20.2920, -40.2987], data: new Date(agora.getTime() - 1 * 24 * 60 * 60 * 1000) }, // 1 dia atrás
-  { coord: [-20.2922, -40.2984], data: new Date(agora.getTime() - 3 * 24 * 60 * 60 * 1000) }, // 3 dias atrás
-  { coord: [-20.2924, -40.2966], data: new Date(agora.getTime() - 5 * 24 * 60 * 60 * 1000) }, // 5 dias atrás
-  { coord: [-20.2918, -40.2982], data: new Date(agora.getTime() - 6 * 24 * 60 * 60 * 1000) }, // 6 dias atrás
-  { coord: [-20.2955, -40.2930], data: new Date(agora.getTime() - 12 * 24 * 60 * 60 * 1000) }, // 12 dias atrás
-  { coord: [-20.2953, -40.2933], data: new Date(agora.getTime() - 15 * 24 * 60 * 60 * 1000) }, // 15 dias atrás
-  { coord: [-20.2957, -40.2928], data: new Date(agora.getTime() - 18 * 24 * 60 * 60 * 1000) }, // 18 dias atrás
-  { coord: [-20.2954, -40.2931], data: new Date(agora.getTime() - 20 * 24 * 60 * 60 * 1000) }, // 20 dias atrás
-  { coord: [-20.2932, -40.2963], data: new Date(agora.getTime() - 22 * 24 * 60 * 60 * 1000) }, // 22 dias atrás
-  { coord: [-20.2940, -40.2970], data: new Date(agora.getTime() - 25 * 24 * 60 * 60 * 1000) }, // 25 dias atrás
-  { coord: [-20.2910, -40.2950], data: new Date(agora.getTime() - 28 * 24 * 60 * 60 * 1000) }, // 28 dias atrás
-  { coord: [-20.2960, -40.2990], data: new Date(agora.getTime() - 40 * 24 * 60 * 60 * 1000) }  // 40 dias atrás
+  { coord: [-20.2921, -40.2985], data: new Date(agora.getTime() - 2 * 60 * 60 * 1000) }, 
+  { coord: [-20.2923, -40.2981], data: new Date(agora.getTime() - 4 * 60 * 60 * 1000) }, 
+  { coord: [-20.2919, -40.2989], data: new Date(agora.getTime() - 10 * 60 * 60 * 1000) }, 
+  { coord: [-20.2925, -40.2983], data: new Date(agora.getTime() - 22 * 60 * 60 * 1000) }, 
+  { coord: [-20.2920, -40.2987], data: new Date(agora.getTime() - 1 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2922, -40.2984], data: new Date(agora.getTime() - 3 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2924, -40.2966], data: new Date(agora.getTime() - 5 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2918, -40.2982], data: new Date(agora.getTime() - 6 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2955, -40.2930], data: new Date(agora.getTime() - 12 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2953, -40.2933], data: new Date(agora.getTime() - 15 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2957, -40.2928], data: new Date(agora.getTime() - 18 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2954, -40.2931], data: new Date(agora.getTime() - 20 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2932, -40.2963], data: new Date(agora.getTime() - 22 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2940, -40.2970], data: new Date(agora.getTime() - 25 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2910, -40.2950], data: new Date(agora.getTime() - 28 * 24 * 60 * 60 * 1000) }, 
+  { coord: [-20.2960, -40.2990], data: new Date(agora.getTime() - 40 * 24 * 60 * 60 * 1000) }  
 ];
 
 const mapa = L.map("mapa", { zoomControl: true, scrollWheelZoom: true })
@@ -171,14 +170,13 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 let camadaHexagonos = L.layerGroup().addTo(mapa);
 
-// Correção matemática definitiva na interpolação das cores
 function corPorIntensidade(contagem, maxContagem) {
   const t = maxContagem > 1 ? Math.min((contagem - 1) / (maxContagem - 1), 1) : 0;
   
-  // Gradiente limpo e real da sua marca: Marrom escuro (#3A2F00) -> Amarelo Piscou (#FFD400)
+  // Gradiente real da marca: Marrom escuro para Amarelo Piscou
   const r = Math.round(58 + (255 - 58) * t);
   const g = Math.round(47 + (212 - 47) * t);
-  const b = Math.round(0 + (0 - 0) * t);
+  const b = Math.round(0 * t);
   
   return `rgb(${r}, ${g}, ${b})`;
 }
@@ -216,3 +214,49 @@ function renderizarHexagonos() {
   const celulas = Object.keys(contagemPorCelula);
   
   if (celulas.length === 0) {
+    document.getElementById("stat-total").innerText = 0;
+    document.getElementById("stat-hexagonos").innerText = 0;
+    document.getElementById("stat-pico").innerText = 0;
+    document.getElementById("legenda-escala").innerHTML = "Sem dados.";
+    return;
+  }
+  
+  const maxContagem = Math.max(...celulas.map(c => contagemPorCelula[c]));
+
+  celulas.forEach(celula => {
+    const contagem = contagemPorCelula[celula];
+    const limites = h3.cellToBoundary(celula); 
+const cor = corPorIntensidade(contagem, maxContagem);
+const pol = L.polygon(limites, {
+color: "#0D0D0D",
+weight: 1.5,
+fillColor: cor,
+fillOpacity: 0.75
+});
+pol.bindTooltip(<div class="hex-tooltip"> <strong>${contagem} registros</strong> nesta área </div>);
+camadaHexagonos.addLayer(pol);
+});
+document.getElementById("stat-total").innerText = pontosFiltrados.length;
+document.getElementById("stat-hexagonos").innerText = celulas.length;
+document.getElementById("stat-pico").innerText = maxContagem;
+const legendaEscala = document.getElementById("legenda-escala");
+legendaEscala.innerHTML = "";
+const valoresLegenda = maxContagem === 1 ? [1] : [1, Math.round(maxContagem/2), maxContagem];
+valoresLegenda.forEach(val => {
+const cor = corPorIntensidade(val, maxContagem);
+legendaEscala.innerHTML += <div class="legenda-escala"><div class="legenda-cor" style="background:${cor}"></div> <span>${val} registros</span></div>;
+});
+}
+document.getElementById("resolucao").addEventListener("change", renderizarHexagonos);
+const selectPeriodo = document.getElementById("periodo");
+const customCampos = document.getElementById("periodo-custom");
+selectPeriodo.addEventListener("change", (e) => {
+if (e.target.value === "custom") {
+customCampos.style.display = "flex";
+} else {
+customCampos.style.display = "none";
+renderizarHexagonos();
+}
+});
+document.getElementById("aplicar-periodo").addEventListener("click", renderizarHexagonos);
+renderizarHexagonos();
