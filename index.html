@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Piscou Aqui — Mapa de Calor Hexagonal (H3)</title>
 
-<link rel="preconnect" href="https://googleapis.com">
-<link href="https://googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="libs-final/leaflet.css">
 <script src="libs-final/leaflet.js"></script>
@@ -78,6 +79,18 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 .placar-linha:last-child{border-bottom:none}
 .placar-label{font-family:var(--mono);font-size:.68rem;color:var(--cinza);text-transform:uppercase}
 .placar-valor{font-family:var(--display);font-size:1.3rem;color:var(--amarelo)}
+.placar-rodape{font-family:var(--mono);font-size:.62rem;color:var(--cinza);padding:0 14px 12px;line-height:1.4}
+
+.aviso{
+  position:absolute;top:130px;left:50%;transform:translateX(-50%);z-index:950;
+  background:var(--carvao);border:2px solid var(--amarelo);color:var(--papel);
+  font-family:var(--mono);font-size:.78rem;line-height:1.5;text-align:center;
+  padding:12px 18px;max-width:min(420px,calc(100% - 32px));
+  box-shadow:6px 6px 0 rgba(0,0,0,.5);display:none;
+}
+.aviso strong{color:var(--amarelo)}
+.aviso.erro{border-color:#FF5A3C}
+.aviso.erro strong{color:#FF5A3C}
 
 .hex-tooltip{font-family:var(--mono);font-size:.75rem}
 .hex-tooltip strong{color:var(--amarelo)}
@@ -86,6 +99,7 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
   .placar{display:none}
   .legenda{bottom:16px;left:16px;font-size:.65rem;padding:10px 12px}
   .topo{padding:12px 16px}
+  .aviso{top:auto;bottom:140px}
 }
 </style>
 </head>
@@ -110,6 +124,13 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
       <button id="aplicar-periodo">Aplicar</button>
     </span>
 
+    <label for="tipo">Tipo</label>
+    <select id="tipo">
+      <option value="todos" selected>Todos</option>
+      <option value="apagao">Apagão</option>
+      <option value="oscilacao">Oscilação</option>
+    </select>
+
     <label for="resolucao">Granularidade</label>
     <select id="resolucao">
       <option value="8">Bairro (H3 res. 8, ~0,7 km²)</option>
@@ -120,6 +141,8 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 </header>
 
 <div id="mapa"></div>
+
+<div class="aviso" id="aviso" role="status" aria-live="polite"></div>
 
 <aside class="legenda">
   <div class="legenda-titulo">Registros por hexágono</div>
@@ -134,34 +157,23 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
     <div class="placar-linha"><span class="placar-label">Hexágonos ativos</span><span class="placar-valor" id="stat-hexagonos">—</span></div>
     <div class="placar-linha"><span class="placar-label">Pico (maior célula)</span><span class="placar-valor" id="stat-pico">—</span></div>
   </div>
+  <div class="placar-rodape" id="stat-atualizado">Carregando dados…</div>
 </aside>
 
 <script>
-const CENTRO = [-20.2932, -40.2963]; 
-const ZOOM_INICIAL = 15;
+const URL_DADOS = "dados/registros.json";
+// Usado só enquanto os dados carregam ou se não houver pontos válidos
+const CENTRO_PADRAO = [-20.2932, -40.2963];
+const ZOOM_PADRAO = 13;
 
-const agora = new Date();
-const pontosOriginais = [
-  { coord: [-20.2921, -40.2985], data: new Date(agora.getTime() - 2 * 60 * 60 * 1000) }, 
-  { coord: [-20.2923, -40.2981], data: new Date(agora.getTime() - 4 * 60 * 60 * 1000) }, 
-  { coord: [-20.2919, -40.2989], data: new Date(agora.getTime() - 10 * 60 * 60 * 1000) }, 
-  { coord: [-20.2925, -40.2983], data: new Date(agora.getTime() - 22 * 60 * 60 * 1000) }, 
-  { coord: [-20.2920, -40.2987], data: new Date(agora.getTime() - 1 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2922, -40.2984], data: new Date(agora.getTime() - 3 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2924, -40.2966], data: new Date(agora.getTime() - 5 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2918, -40.2982], data: new Date(agora.getTime() - 6 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2955, -40.2930], data: new Date(agora.getTime() - 12 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2953, -40.2933], data: new Date(agora.getTime() - 15 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2957, -40.2928], data: new Date(agora.getTime() - 18 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2954, -40.2931], data: new Date(agora.getTime() - 20 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2932, -40.2963], data: new Date(agora.getTime() - 22 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2940, -40.2970], data: new Date(agora.getTime() - 25 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2910, -40.2950], data: new Date(agora.getTime() - 28 * 24 * 60 * 60 * 1000) }, 
-  { coord: [-20.2960, -40.2990], data: new Date(agora.getTime() - 40 * 24 * 60 * 60 * 1000) }  
-];
+const ROTULO_TIPO = { apagao: "apagão", oscilacao: "oscilação" };
+
+let pontosOriginais = [];
+let atualizadoEm = null;
+let dadosCarregados = false;
 
 const mapa = L.map("mapa", { zoomControl: true, scrollWheelZoom: true })
-  .setView(CENTRO, ZOOM_INICIAL);
+  .setView(CENTRO_PADRAO, ZOOM_PADRAO);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
@@ -172,91 +184,196 @@ let camadaHexagonos = L.layerGroup().addTo(mapa);
 
 function corPorIntensidade(contagem, maxContagem) {
   const t = maxContagem > 1 ? Math.min((contagem - 1) / (maxContagem - 1), 1) : 0;
-  
+
   // Gradiente real da marca: Marrom escuro para Amarelo Piscou
   const r = Math.round(58 + (255 - 58) * t);
   const g = Math.round(47 + (212 - 47) * t);
   const b = Math.round(0 * t);
-  
+
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-function filtrarPontos() {
+function formatarData(d) {
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatarDataHora(d) {
+  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// "AAAA-MM-DD" do <input type="date"> como data LOCAL (new Date("AAAA-MM-DD") seria UTC)
+function dataLocal(valor) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor || "");
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+function mostrarAviso(html, erro = false) {
+  const aviso = document.getElementById("aviso");
+  aviso.innerHTML = html;
+  aviso.classList.toggle("erro", erro);
+  aviso.style.display = "block";
+}
+
+function esconderAviso() {
+  document.getElementById("aviso").style.display = "none";
+}
+
+function filtrarPorPeriodo(pontos) {
   const periodo = document.getElementById("periodo").value;
   const dataLimite = new Date();
 
-  if (periodo === "todos") return pontosOriginais;
+  if (periodo === "todos") return pontos;
   if (periodo === "24h") dataLimite.setHours(dataLimite.getHours() - 24);
   else if (periodo === "7d") dataLimite.setDate(dataLimite.getDate() - 7);
   else if (periodo === "30d") dataLimite.setDate(dataLimite.getDate() - 30);
   else if (periodo === "custom") {
-    const inicio = new Date(document.getElementById("data-inicio").value);
-    const fim = new Date(document.getElementById("data-fim").value);
-    if (isNaN(inicio) || isNaN(fim)) return pontosOriginais;
-    fim.setHours(23, 59, 59);
-    return pontosOriginais.filter(p => p.data >= inicio && p.data <= fim);
+    const inicio = dataLocal(document.getElementById("data-inicio").value);
+    const fim = dataLocal(document.getElementById("data-fim").value);
+    if (fim) fim.setHours(23, 59, 59, 999);
+    return pontos.filter(p => (!inicio || p.data >= inicio) && (!fim || p.data <= fim));
   }
-  return pontosOriginais.filter(p => p.data >= dataLimite);
+  return pontos.filter(p => p.data >= dataLimite);
+}
+
+function filtrarPorTipo(pontos) {
+  const tipo = document.getElementById("tipo").value;
+  if (tipo === "todos") return pontos;
+  return pontos.filter(p => p.tipo === tipo);
+}
+
+function filtrarPontos() {
+  return filtrarPorTipo(filtrarPorPeriodo(pontosOriginais));
+}
+
+function textoTooltip(celula) {
+  const partes = [];
+  if (celula.apagao) partes.push(`${celula.apagao} ${celula.apagao === 1 ? "apagão" : "apagões"}`);
+  if (celula.oscilacao) partes.push(`${celula.oscilacao} ${celula.oscilacao === 1 ? "oscilação" : "oscilações"}`);
+  const detalhe = partes.length ? `<br>${partes.join(" · ")}` : "";
+  return `<div class="hex-tooltip"><strong>${celula.total} ${celula.total === 1 ? "registro" : "registros"}</strong> nesta área${detalhe}</div>`;
+}
+
+function avisoJanelaVazia() {
+  if (pontosOriginais.length === 0) {
+    return "<strong>Nenhum registro publicado ainda.</strong>";
+  }
+  const ultimo = pontosOriginais.reduce((a, b) => (b.data > a.data ? b : a)).data;
+  return `<strong>Nenhum registro nesta janela.</strong><br>O registro mais recente é de ${formatarData(ultimo)}. Tente um período maior ou "Todo o histórico".`;
 }
 
 function renderizarHexagonos() {
   camadaHexagonos.clearLayers();
-  
-  const resolucao = parseInt(document.getElementById("resolucao").value);
+  if (!dadosCarregados) return;
+
+  const resolucao = parseInt(document.getElementById("resolucao").value, 10);
   const pontosFiltrados = filtrarPontos();
 
   const contagemPorCelula = {};
   pontosFiltrados.forEach(p => {
-    const celula = h3.latLngToCell(p.coord[0], p.coord[1], resolucao);
-    contagemPorCelula[celula] = (contagemPorCelula[celula] || 0) + 1;
+    const id = h3.latLngToCell(p.coord[0], p.coord[1], resolucao);
+    const celula = contagemPorCelula[id] || (contagemPorCelula[id] = { total: 0, apagao: 0, oscilacao: 0 });
+    celula.total += 1;
+    if (p.tipo === "apagao" || p.tipo === "oscilacao") celula[p.tipo] += 1;
   });
 
   const celulas = Object.keys(contagemPorCelula);
-  
+
   if (celulas.length === 0) {
     document.getElementById("stat-total").innerText = 0;
     document.getElementById("stat-hexagonos").innerText = 0;
     document.getElementById("stat-pico").innerText = 0;
-    document.getElementById("legenda-escala").innerHTML = "Sem dados.";
+    document.getElementById("legenda-escala").innerHTML = "Sem registros nesta janela.";
+    mostrarAviso(avisoJanelaVazia());
     return;
   }
-  
-  const maxContagem = Math.max(...celulas.map(c => contagemPorCelula[c]));
 
-  celulas.forEach(celula => {
-    const contagem = contagemPorCelula[celula];
-    const limites = h3.cellToBoundary(celula); 
-const cor = corPorIntensidade(contagem, maxContagem);
-const pol = L.polygon(limites, {
-color: "#0D0D0D",
-weight: 1.5,
-fillColor: cor,
-fillOpacity: 0.75
-});
-pol.bindTooltip(<div class="hex-tooltip"> <strong>${contagem} registros</strong> nesta área </div>);
-camadaHexagonos.addLayer(pol);
-});
-document.getElementById("stat-total").innerText = pontosFiltrados.length;
-document.getElementById("stat-hexagonos").innerText = celulas.length;
-document.getElementById("stat-pico").innerText = maxContagem;
-const legendaEscala = document.getElementById("legenda-escala");
-legendaEscala.innerHTML = "";
-const valoresLegenda = maxContagem === 1 ? [1] : [1, Math.round(maxContagem/2), maxContagem];
-valoresLegenda.forEach(val => {
-const cor = corPorIntensidade(val, maxContagem);
-legendaEscala.innerHTML += <div class="legenda-escala"><div class="legenda-cor" style="background:${cor}"></div> <span>${val} registros</span></div>;
-});
+  esconderAviso();
+
+  const maxContagem = Math.max(...celulas.map(c => contagemPorCelula[c].total));
+
+  celulas.forEach(id => {
+    const celula = contagemPorCelula[id];
+    const limites = h3.cellToBoundary(id);
+    const cor = corPorIntensidade(celula.total, maxContagem);
+    const pol = L.polygon(limites, {
+      color: "#0D0D0D",
+      weight: 1.5,
+      fillColor: cor,
+      fillOpacity: 0.75
+    });
+    pol.bindTooltip(textoTooltip(celula));
+    camadaHexagonos.addLayer(pol);
+  });
+
+  document.getElementById("stat-total").innerText = pontosFiltrados.length;
+  document.getElementById("stat-hexagonos").innerText = celulas.length;
+  document.getElementById("stat-pico").innerText = maxContagem;
+
+  const legendaEscala = document.getElementById("legenda-escala");
+  legendaEscala.innerHTML = "";
+  const valoresLegenda = maxContagem === 1 ? [1] : [...new Set([1, Math.round(maxContagem / 2), maxContagem])];
+  valoresLegenda.forEach(val => {
+    const cor = corPorIntensidade(val, maxContagem);
+    legendaEscala.innerHTML += `<div class="legenda-escala"><div class="legenda-cor" style="background:${cor}"></div> <span>${val} ${val === 1 ? "registro" : "registros"}</span></div>`;
+  });
 }
+
+function enquadrarPontos() {
+  if (pontosOriginais.length === 0) return;
+  const limites = L.latLngBounds(pontosOriginais.map(p => p.coord));
+  mapa.fitBounds(limites, { padding: [40, 40], maxZoom: 16 });
+}
+
+async function carregarDados() {
+  try {
+    const resposta = await fetch(URL_DADOS, { cache: "no-store" });
+    if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+    const json = await resposta.json();
+    if (!json || !Array.isArray(json.pontos)) throw new Error("formato inesperado (falta a lista \"pontos\")");
+
+    pontosOriginais = json.pontos
+      .map(p => ({
+        coord: [Number(p.lat), Number(p.lng)],
+        tipo: p.tipo,
+        data: new Date(p.data)
+      }))
+      .filter(p => Number.isFinite(p.coord[0]) && Number.isFinite(p.coord[1]) && !isNaN(p.data));
+
+    atualizadoEm = json.atualizado_em ? new Date(json.atualizado_em) : null;
+    dadosCarregados = true;
+
+    document.getElementById("stat-atualizado").innerText =
+      atualizadoEm && !isNaN(atualizadoEm)
+        ? `Dados atualizados em ${formatarDataHora(atualizadoEm)}`
+        : `${pontosOriginais.length} registros carregados`;
+
+    enquadrarPontos();
+    renderizarHexagonos();
+  } catch (erro) {
+    console.error("Falha ao carregar registros:", erro);
+    document.getElementById("stat-atualizado").innerText = "Dados indisponíveis";
+    document.getElementById("legenda-escala").innerHTML = "Sem dados.";
+    mostrarAviso(`<strong>Não foi possível carregar os registros.</strong><br>Tente recarregar a página em instantes.`, true);
+  }
+}
+
 document.getElementById("resolucao").addEventListener("change", renderizarHexagonos);
+document.getElementById("tipo").addEventListener("change", renderizarHexagonos);
+
 const selectPeriodo = document.getElementById("periodo");
 const customCampos = document.getElementById("periodo-custom");
 selectPeriodo.addEventListener("change", (e) => {
-if (e.target.value === "custom") {
-customCampos.style.display = "flex";
-} else {
-customCampos.style.display = "none";
-renderizarHexagonos();
-}
+  if (e.target.value === "custom") {
+    customCampos.style.display = "flex";
+  } else {
+    customCampos.style.display = "none";
+    renderizarHexagonos();
+  }
 });
 document.getElementById("aplicar-periodo").addEventListener("click", renderizarHexagonos);
-renderizarHexagonos();
+
+carregarDados();
+</script>
+</body>
+</html>
