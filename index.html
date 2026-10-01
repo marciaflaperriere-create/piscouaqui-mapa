@@ -95,6 +95,27 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 .hex-tooltip{font-family:var(--mono);font-size:.75rem}
 .hex-tooltip strong{color:var(--amarelo)}
 
+/* ===== Modo laudo (?modo=laudo): imagem estática para o relatório ===== */
+.carimbo{
+  display:none;position:absolute;top:24px;right:24px;z-index:900;
+  background:var(--preto);border:2px solid var(--amarelo);width:300px;
+  box-shadow:8px 8px 0 rgba(0,0,0,.55);font-family:var(--mono);font-size:.7rem;
+}
+.carimbo-head{background:var(--amarelo);color:var(--preto);text-transform:uppercase;letter-spacing:.08em;padding:8px 14px;font-weight:600}
+.carimbo-body{padding:10px 14px 12px}
+.carimbo-linha{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--grafite)}
+.carimbo-linha:last-child{border-bottom:none}
+.carimbo-linha span:first-child{color:var(--cinza);text-transform:uppercase;flex-shrink:0}
+.carimbo-linha span:last-child{text-align:right}
+.carimbo-destaque{color:var(--amarelo);font-weight:600}
+
+body.modo-laudo .topo,
+body.modo-laudo .placar,
+body.modo-laudo .aviso,
+body.modo-laudo .leaflet-control-zoom{display:none!important}
+body.modo-laudo .carimbo{display:block}
+body.modo-laudo #mapa{height:calc(100vh - 10px)}
+
 @media (max-width:640px){
   .placar{display:none}
   .legenda{bottom:16px;left:16px;font-size:.65rem;padding:10px 12px}
@@ -160,6 +181,11 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
   <div class="placar-rodape" id="stat-atualizado">Carregando dados…</div>
 </aside>
 
+<aside class="carimbo" id="carimbo">
+  <div class="carimbo-head">⚡ Piscou Aqui — Registro para laudo</div>
+  <div class="carimbo-body" id="carimbo-corpo"></div>
+</aside>
+
 <script>
 const URL_DADOS = "dados/registros.json";
 // Usado só enquanto os dados carregam ou se não houver pontos válidos
@@ -167,20 +193,84 @@ const CENTRO_PADRAO = [-20.2932, -40.2963];
 const ZOOM_PADRAO = 13;
 
 const ROTULO_TIPO = { apagao: "apagão", oscilacao: "oscilação" };
+const FUSO = "America/Sao_Paulo";
+
+// ===== Parâmetros da URL =====
+// Ex.: ?lat=-20.31&lng=-40.30&zoom=16&inicio=2026-09-30T18:00&fim=2026-09-30T22:00
+//      &tipo=apagao&res=9&destaque=1&anel=1&modo=laudo&dados=dados/laudos/123.json
+// Datas sem fuso são lidas no horário de Brasília (o navegador do servidor pode estar em UTC).
+function dataDaUrl(valor, fimDoDia) {
+  if (!valor) return null;
+  let texto = valor.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) texto += fimDoDia ? "T23:59:59.999" : "T00:00:00";
+  if (!/(Z|[+-]\d{2}:?\d{2})$/.test(texto)) texto += "-03:00";
+  const d = new Date(texto);
+  return isNaN(d) ? null : d;
+}
+
+function lerParametros() {
+  const q = new URLSearchParams(location.search);
+  const num = (nome) => {
+    const v = q.get(nome);
+    return v !== null && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null;
+  };
+  const lat = num("lat"), lng = num("lng");
+  const temCentro = lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  const zoom = num("zoom");
+  const res = num("res");
+  const anel = num("anel");
+  const tipo = q.get("tipo");
+  const destaque = q.get("destaque");
+  const dados = q.get("dados");
+
+  return {
+    laudo: q.get("modo") === "laudo",
+    centro: temCentro ? [lat, lng] : null,
+    zoom: zoom !== null && zoom >= 3 && zoom <= 19 ? Math.round(zoom) : null,
+    inicio: dataDaUrl(q.get("inicio"), false),
+    fim: dataDaUrl(q.get("fim"), true),
+    tipo: ["todos", "apagao", "oscilacao"].includes(tipo) ? tipo : null,
+    res: [8, 9, 10].includes(res) ? res : null,
+    // destaque = id de célula H3, ou "1" para destacar a célula do ponto lat/lng
+    destaque: destaque && destaque !== "0" ? destaque : null,
+    anel: anel !== null && anel >= 0 && anel <= 3 ? Math.round(anel) : 0,
+    // Só arquivos JSON dentro de dados/ do próprio site (instantâneo congelado do laudo)
+    dados: dados && /^dados\/[\w\-\/]+\.json$/.test(dados) && !dados.includes("..") ? dados : null
+  };
+}
+
+const PARAMS = lerParametros();
+if (PARAMS.laudo) document.body.classList.add("modo-laudo");
+
+// Período exato vindo da URL; vale até o usuário mexer nos controles de período
+let periodoExato = PARAMS.inicio || PARAMS.fim ? { inicio: PARAMS.inicio, fim: PARAMS.fim } : null;
+
+// Sinal para o navegador automático que tira a foto do laudo
+window.MAPA_PRONTO = false;
 
 let pontosOriginais = [];
 let atualizadoEm = null;
 let dadosCarregados = false;
 
-const mapa = L.map("mapa", { zoomControl: true, scrollWheelZoom: true })
-  .setView(CENTRO_PADRAO, ZOOM_PADRAO);
+const mapa = L.map("mapa", {
+  zoomControl: !PARAMS.laudo,
+  scrollWheelZoom: !PARAMS.laudo,
+  dragging: !PARAMS.laudo,
+  doubleClickZoom: !PARAMS.laudo,
+  boxZoom: !PARAMS.laudo,
+  keyboard: !PARAMS.laudo,
+  touchZoom: !PARAMS.laudo,
+  zoomAnimation: !PARAMS.laudo,
+  fadeAnimation: !PARAMS.laudo
+}).setView(PARAMS.centro || CENTRO_PADRAO, PARAMS.zoom || (PARAMS.centro ? 16 : ZOOM_PADRAO));
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+const camadaMapaBase = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
   maxZoom: 19
 }).addTo(mapa);
 
 let camadaHexagonos = L.layerGroup().addTo(mapa);
+let camadaDestaque = L.layerGroup().addTo(mapa);
 
 function corPorIntensidade(contagem, maxContagem) {
   const t = maxContagem > 1 ? Math.min((contagem - 1) / (maxContagem - 1), 1) : 0;
@@ -199,6 +289,16 @@ function formatarData(d) {
 
 function formatarDataHora(d) {
   return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// Sempre no horário de Brasília, qualquer que seja o fuso do navegador (usado no laudo)
+function formatarDataHoraBrasilia(d) {
+  return d.toLocaleString("pt-BR", { timeZone: FUSO, day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+// "AAAA-MM-DD" da data no horário de Brasília, para preencher <input type="date">
+function dataInputBrasilia(d) {
+  return d.toLocaleDateString("en-CA", { timeZone: FUSO });
 }
 
 // "AAAA-MM-DD" do <input type="date"> como data LOCAL (new Date("AAAA-MM-DD") seria UTC)
@@ -220,6 +320,10 @@ function esconderAviso() {
 }
 
 function filtrarPorPeriodo(pontos) {
+  if (periodoExato) {
+    const { inicio, fim } = periodoExato;
+    return pontos.filter(p => (!inicio || p.data >= inicio) && (!fim || p.data <= fim));
+  }
   const periodo = document.getElementById("periodo").value;
   const dataLimite = new Date();
 
@@ -262,8 +366,75 @@ function avisoJanelaVazia() {
   return `<strong>Nenhum registro nesta janela.</strong><br>O registro mais recente é de ${formatarData(ultimo)}. Tente um período maior ou "Todo o histórico".`;
 }
 
+// Célula do solicitante: id H3 informado em ?destaque=, ou a célula de ?lat/&lng com ?destaque=1
+function celulaDestaque(resolucao) {
+  if (!PARAMS.destaque) return null;
+  if (PARAMS.destaque !== "1") {
+    if (!h3.isValidCell(PARAMS.destaque)) return null;
+    const r = h3.getResolution(PARAMS.destaque);
+    if (r === resolucao) return PARAMS.destaque;
+    // Ajusta para a granularidade escolhida, usando o centro da célula informada
+    const [la, ln] = h3.cellToLatLng(PARAMS.destaque);
+    return h3.latLngToCell(la, ln, resolucao);
+  }
+  return PARAMS.centro ? h3.latLngToCell(PARAMS.centro[0], PARAMS.centro[1], resolucao) : null;
+}
+
+function desenharDestaque(centro, area) {
+  camadaDestaque.clearLayers();
+  if (!centro) return;
+  area.filter(id => id !== centro).forEach(id => {
+    camadaDestaque.addLayer(L.polygon(h3.cellToBoundary(id), {
+      color: "#FFD400", weight: 2, dashArray: "6 5", fill: false, interactive: false
+    }));
+  });
+  camadaDestaque.addLayer(L.polygon(h3.cellToBoundary(centro), {
+    color: "#FFFFFF", weight: 4, fill: false, interactive: false
+  }));
+  camadaDestaque.addLayer(L.polygon(h3.cellToBoundary(centro), {
+    color: "#FF5A3C", weight: 2, fill: false, interactive: false
+  }));
+}
+
+function linhaCarimbo(rotulo, valor, destaque = false) {
+  return `<div class="carimbo-linha"><span>${rotulo}</span><span${destaque ? ' class="carimbo-destaque"' : ""}>${valor}</span></div>`;
+}
+
+function atualizarCarimbo(pontosFiltrados, resolucao, centro, area, contagemPorCelula) {
+  if (!PARAMS.laudo) return;
+  const { inicio, fim } = periodoExato || {};
+  const periodo = inicio || fim
+    ? `${inicio ? formatarDataHoraBrasilia(inicio) : "início"} a ${fim ? formatarDataHoraBrasilia(fim) : "hoje"}`
+    : "Todo o histórico";
+  const tipo = document.getElementById("tipo").value;
+  const nomeRes = { 8: "res. 8 (~0,7 km²)", 9: "res. 9 (~0,1 km²)", 10: "res. 10 (~0,015 km²)" }[resolucao];
+
+  let html = linhaCarimbo("Período", periodo)
+    + linhaCarimbo("Tipo", tipo === "todos" ? "apagão e oscilação" : ROTULO_TIPO[tipo])
+    + linhaCarimbo("Grade H3", nomeRes)
+    + linhaCarimbo("Registros no mapa", pontosFiltrados.length);
+
+  if (centro) {
+    const soma = { total: 0, apagao: 0, oscilacao: 0 };
+    area.forEach(id => {
+      const c = contagemPorCelula[id];
+      if (c) { soma.total += c.total; soma.apagao += c.apagao; soma.oscilacao += c.oscilacao; }
+    });
+    html += linhaCarimbo(PARAMS.anel ? `Área destacada (+${PARAMS.anel} anel)` : "Área destacada", `${soma.total} registros`, true)
+      + linhaCarimbo("Apagões / oscilações", `${soma.apagao} / ${soma.oscilacao}`)
+      + linhaCarimbo("Célula", centro);
+    // Mesmos números da imagem, para o gerador do laudo conferir com a tabela
+    window.MAPA_RESUMO = { celula: centro, anel: PARAMS.anel, resolucao, area, ...soma, registros_no_mapa: pontosFiltrados.length };
+  } else {
+    window.MAPA_RESUMO = { celula: null, resolucao, registros_no_mapa: pontosFiltrados.length };
+  }
+  html += linhaCarimbo("Dados de", atualizadoEm && !isNaN(atualizadoEm) ? formatarDataHoraBrasilia(atualizadoEm) : "—");
+  document.getElementById("carimbo-corpo").innerHTML = html;
+}
+
 function renderizarHexagonos() {
   camadaHexagonos.clearLayers();
+  camadaDestaque.clearLayers();
   if (!dadosCarregados) return;
 
   const resolucao = parseInt(document.getElementById("resolucao").value, 10);
@@ -279,7 +450,12 @@ function renderizarHexagonos() {
 
   const celulas = Object.keys(contagemPorCelula);
 
+  const centro = celulaDestaque(resolucao);
+  const area = centro ? h3.gridDisk(centro, PARAMS.anel) : [];
+  atualizarCarimbo(pontosFiltrados, resolucao, centro, area, contagemPorCelula);
+
   if (celulas.length === 0) {
+    desenharDestaque(centro, area);
     document.getElementById("stat-total").innerText = 0;
     document.getElementById("stat-hexagonos").innerText = 0;
     document.getElementById("stat-pico").innerText = 0;
@@ -305,6 +481,7 @@ function renderizarHexagonos() {
     pol.bindTooltip(textoTooltip(celula));
     camadaHexagonos.addLayer(pol);
   });
+  desenharDestaque(centro, area);
 
   document.getElementById("stat-total").innerText = pontosFiltrados.length;
   document.getElementById("stat-hexagonos").innerText = celulas.length;
@@ -325,9 +502,39 @@ function enquadrarPontos() {
   mapa.fitBounds(limites, { padding: [40, 40], maxZoom: 16 });
 }
 
+// Leva os parâmetros da URL para os controles da tela
+function aplicarParametrosNosControles() {
+  if (PARAMS.tipo) document.getElementById("tipo").value = PARAMS.tipo;
+  if (PARAMS.res) document.getElementById("resolucao").value = String(PARAMS.res);
+  if (periodoExato) {
+    document.getElementById("periodo").value = "custom";
+    document.getElementById("periodo-custom").style.display = "flex";
+    if (periodoExato.inicio) document.getElementById("data-inicio").value = dataInputBrasilia(periodoExato.inicio);
+    if (periodoExato.fim) document.getElementById("data-fim").value = dataInputBrasilia(periodoExato.fim);
+  }
+}
+
+// Espera os mosaicos do mapa base terminarem de carregar (com limite de tempo)
+function esperarMapaBase(limiteMs = 15000) {
+  return new Promise(resolve => {
+    if (!camadaMapaBase.isLoading()) return resolve(true);
+    const timer = setTimeout(() => resolve(false), limiteMs);
+    camadaMapaBase.once("load", () => { clearTimeout(timer); resolve(true); });
+  });
+}
+
+// Avisa o navegador automático que a imagem pode ser capturada
+async function sinalizarPronto() {
+  const mosaicosOk = await esperarMapaBase();
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  window.MAPA_MOSAICOS_OK = mosaicosOk;
+  window.MAPA_PRONTO = true;
+  document.body.dataset.pronto = "1";
+}
+
 async function carregarDados() {
   try {
-    const resposta = await fetch(URL_DADOS, { cache: "no-store" });
+    const resposta = await fetch(PARAMS.dados || URL_DADOS, { cache: "no-store" });
     if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
     const json = await resposta.json();
     if (!json || !Array.isArray(json.pontos)) throw new Error("formato inesperado (falta a lista \"pontos\")");
@@ -348,14 +555,17 @@ async function carregarDados() {
         ? `Dados atualizados em ${formatarDataHora(atualizadoEm)}`
         : `${pontosOriginais.length} registros carregados`;
 
-    enquadrarPontos();
+    // Com lat/lng na URL o enquadramento é o pedido; sem eles, mostra todos os pontos
+    if (!PARAMS.centro) enquadrarPontos();
     renderizarHexagonos();
   } catch (erro) {
     console.error("Falha ao carregar registros:", erro);
+    window.MAPA_ERRO = String(erro && erro.message || erro);
     document.getElementById("stat-atualizado").innerText = "Dados indisponíveis";
     document.getElementById("legenda-escala").innerHTML = "Sem dados.";
     mostrarAviso(`<strong>Não foi possível carregar os registros.</strong><br>Tente recarregar a página em instantes.`, true);
   }
+  sinalizarPronto();
 }
 
 document.getElementById("resolucao").addEventListener("change", renderizarHexagonos);
@@ -364,6 +574,7 @@ document.getElementById("tipo").addEventListener("change", renderizarHexagonos);
 const selectPeriodo = document.getElementById("periodo");
 const customCampos = document.getElementById("periodo-custom");
 selectPeriodo.addEventListener("change", (e) => {
+  periodoExato = null;
   if (e.target.value === "custom") {
     customCampos.style.display = "flex";
   } else {
@@ -371,8 +582,12 @@ selectPeriodo.addEventListener("change", (e) => {
     renderizarHexagonos();
   }
 });
-document.getElementById("aplicar-periodo").addEventListener("click", renderizarHexagonos);
+document.getElementById("aplicar-periodo").addEventListener("click", () => {
+  periodoExato = null;
+  renderizarHexagonos();
+});
 
+aplicarParametrosNosControles();
 carregarDados();
 </script>
 </body>
