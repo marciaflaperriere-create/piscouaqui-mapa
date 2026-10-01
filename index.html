@@ -6,7 +6,7 @@
 <title>Piscou Aqui — Mapa de Calor Hexagonal (H3)</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://googleapis.com" rel="stylesheet">
 
 <link rel="stylesheet" href="libs-final/leaflet.css">
 <script src="libs-final/leaflet.js"></script>
@@ -55,6 +55,11 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 #periodo-custom span{font-family:var(--mono);font-size:.72rem;color:var(--cinza)}
 
 #mapa{height:calc(100vh - 106px);width:100%;background:var(--preto)}
+
+/* FILTRO MÁGICO: Transforma o OpenStreetMap claro em modo Dark escuro e profissional */
+.leaflet-tile-container {
+    filter: invert(100%) hue-rotate(180deg) percentile(100%) contrast(90%) brightness(90%);
+}
 
 .leaflet-pane.heat-pane{ filter: blur(7px) saturate(1.15); }
 
@@ -190,7 +195,6 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 </aside>
 
 <script>
-// Inicializa o mapa focado na Grande Vitória como padrão técnico
 const map = L.map('mapa', {
     center: [-20.3155, -40.3128],
     zoom: 12,
@@ -199,14 +203,12 @@ const map = L.map('mapa', {
 
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-// MAPA ESCURO GRATUITO E SÉRIO (Sem necessidade de chaves de API)
-L.tileLayer('https://{s}://{z}/{x}/{y}{r}.png', {
-    maxZoom: 20,
-    attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors &copy; <a href="https://carto.com">CARTO</a>'
+// MAPA DO OPENSTREETMAP 100% GRATUITO E INFALÍVEL PARA PRODUÇÃO
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
 }).addTo(map);
 
-
-// Cria o painel próprio para os hexágonos aplicarem o filtro de blur de calor sem afetar as fontes
 map.createPane('heatPane');
 map.getPane('heatPane').style.zIndex = 400;
 map.getPane('heatPane').classList.add('heat-pane');
