@@ -33,16 +33,26 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
   display:flex;align-items:center;justify-content:space-between;
   padding:16px 24px;background:var(--carvao);border-bottom:2px solid var(--grafite);
   position:relative;z-index:1000;
+  flex-wrap:wrap;gap:12px;
 }
 .logo{font-family:var(--display);font-size:1.1rem;color:var(--papel);display:flex;align-items:center;gap:.5rem;text-transform:uppercase}
 .logo .raio{color:var(--amarelo)}
-.controles{display:flex;align-items:center;gap:14px}
+.controles{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .controles label{font-family:var(--mono);font-size:.72rem;color:var(--cinza);text-transform:uppercase;letter-spacing:.05em}
-.controles select{
+.controles select,.controles input[type="date"]{
   background:var(--preto);color:var(--papel);border:1.5px solid var(--grafite);
   font-family:var(--mono);font-size:.8rem;padding:6px 10px;
 }
-.controles select:focus{outline:2px solid var(--amarelo)}
+.controles select:focus,.controles input[type="date"]:focus{outline:2px solid var(--amarelo)}
+.controles button{
+  background:var(--amarelo);color:var(--preto);border:none;
+  font-family:var(--mono);font-size:.75rem;font-weight:600;text-transform:uppercase;
+  padding:7px 12px;cursor:pointer;letter-spacing:.04em;
+}
+.controles button:hover{background:#fff}
+
+#periodo-custom{display:none;align-items:center;gap:8px;flex-wrap:wrap}
+#periodo-custom span{font-family:var(--mono);font-size:.72rem;color:var(--cinza)}
 
 #mapa{height:calc(100vh - 106px);width:100%}
 
@@ -75,6 +85,7 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 @media (max-width:640px){
   .placar{display:none}
   .legenda{bottom:16px;left:16px;font-size:.65rem;padding:10px 12px}
+  .topo{padding:12px 16px}
 }
 </style>
 </head>
@@ -84,6 +95,21 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 <header class="topo">
   <div class="logo"><span class="raio">⚡</span> Piscou Aqui — Mapa H3</div>
   <div class="controles">
+    <label for="periodo">Período</label>
+    <select id="periodo">
+      <option value="todos" selected>Todo o histórico</option>
+      <option value="24h">Últimas 24 horas</option>
+      <option value="7d">Últimos 7 dias</option>
+      <option value="30d">Últimos 30 dias</option>
+      <option value="custom">Personalizado…</option>
+    </select>
+    <span id="periodo-custom">
+      <input type="date" id="data-inicio">
+      <span>até</span>
+      <input type="date" id="data-fim">
+      <button id="aplicar-periodo">Aplicar</button>
+    </span>
+
     <label for="resolucao">Granularidade</label>
     <select id="resolucao">
       <option value="8">Bairro (H3 res. 8, ~0,7 km²)</option>
@@ -111,21 +137,33 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 </aside>
 
 <script>
-const CENTRO = [-20.2932, -40.2963]; // Praia do Canto, Vitória/ES
+const CENTRO = [-20.2932, -40.2963]; 
 const ZOOM_INICIAL = 15;
 
-// Restauração exata das coordenadas originais do seu protótipo que funcionavam
+// Estrutura de dados original corrigida incluindo cronologia para o filtro de Período funcionar
+const agora = new Date();
 const pontosOriginais = [
-  [-20.2921, -40.2985], [-20.2923, -40.2981], [-20.2919, -40.2989], [-20.2925, -40.2983],
-  [-20.2920, -40.2987], [-20.2922, -40.2984], [-20.2924, -40.2986], [-20.2918, -40.2982],
-  [-20.2955, -40.2930], [-20.2953, -40.2933], [-20.2957, -40.2928], [-20.2954, -40.2931],
-  [-20.2932, -40.2963], [-20.2940, -40.2970], [-20.2910, -40.2950], [-20.2960, -40.2990]
+  { coord: [-20.2921, -40.2985], data: new Date(agora.getTime() - 2 * 60 * 60 * 1000) }, // 2h atrás
+  { coord: [-20.2923, -40.2981], data: new Date(agora.getTime() - 4 * 60 * 60 * 1000) }, // 4h atrás
+  { coord: [-20.2919, -40.2989], data: new Date(agora.getTime() - 10 * 60 * 60 * 1000) }, // 10h atrás
+  { coord: [-20.2925, -40.2983], data: new Date(agora.getTime() - 22 * 60 * 60 * 1000) }, // 22h atrás
+  { coord: [-20.2920, -40.2987], data: new Date(agora.getTime() - 1 * 24 * 60 * 60 * 1000) }, // 1 dia atrás
+  { coord: [-20.2922, -40.2984], data: new Date(agora.getTime() - 3 * 24 * 60 * 60 * 1000) }, // 3 dias atrás
+  { coord: [-20.2924, -40.2966], data: new Date(agora.getTime() - 5 * 24 * 60 * 60 * 1000) }, // 5 dias atrás
+  { coord: [-20.2918, -40.2982], data: new Date(agora.getTime() - 6 * 24 * 60 * 60 * 1000) }, // 6 dias atrás
+  { coord: [-20.2955, -40.2930], data: new Date(agora.getTime() - 12 * 24 * 60 * 60 * 1000) }, // 12 dias atrás
+  { coord: [-20.2953, -40.2933], data: new Date(agora.getTime() - 15 * 24 * 60 * 60 * 1000) }, // 15 dias atrás
+  { coord: [-20.2957, -40.2928], data: new Date(agora.getTime() - 18 * 24 * 60 * 60 * 1000) }, // 18 dias atrás
+  { coord: [-20.2954, -40.2931], data: new Date(agora.getTime() - 20 * 24 * 60 * 60 * 1000) }, // 20 dias atrás
+  { coord: [-20.2932, -40.2963], data: new Date(agora.getTime() - 22 * 24 * 60 * 60 * 1000) }, // 22 dias atrás
+  { coord: [-20.2940, -40.2970], data: new Date(agora.getTime() - 25 * 24 * 60 * 60 * 1000) }, // 25 dias atrás
+  { coord: [-20.2910, -40.2950], data: new Date(agora.getTime() - 28 * 24 * 60 * 60 * 1000) }, // 28 dias atrás
+  { coord: [-20.2960, -40.2990], data: new Date(agora.getTime() - 40 * 24 * 60 * 60 * 1000) }  // 40 dias atrás
 ];
 
 const mapa = L.map("mapa", { zoomControl: true, scrollWheelZoom: true })
   .setView(CENTRO, ZOOM_INICIAL);
 
-// USANDO O OPENSTREETMAP PADRÃO (Funciona em qualquer servidor sem travar a tela)
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
   maxZoom: 19
@@ -133,69 +171,48 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 let camadaHexagonos = L.layerGroup().addTo(mapa);
 
+// Correção matemática definitiva na interpolação das cores
 function corPorIntensidade(contagem, maxContagem) {
-  const t = Math.min(contagem / maxContagem, 1);
-  if (t < 0.5) {
-    return `rgb(${Math.round(58 + (255-58)*parseFloat(t/0.5))}, ${Math.round(47 + (212-47)*parseFloat(t/0.5))}, 0)`;
-  } else {
-    return `rgb(255, ${Math.round(212 + (246-212)*parseFloat((t-0.5)/0.5))}, ${Math.round(0 + (204-0)*parseFloat((t-0.5)/0.5))})`;
-  }
+  const t = maxContagem > 1 ? Math.min((contagem - 1) / (maxContagem - 1), 1) : 0;
+  
+  // Gradiente limpo e real da sua marca: Marrom escuro (#3A2F00) -> Amarelo Piscou (#FFD400)
+  const r = Math.round(58 + (255 - 58) * t);
+  const g = Math.round(47 + (212 - 47) * t);
+  const b = Math.round(0 + (0 - 0) * t);
+  
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
-function renderizarHexagonos(resolucao) {
+function filtrarPontos() {
+  const periodo = document.getElementById("periodo").value;
+  const dataLimite = new Date();
+
+  if (periodo === "todos") return pontosOriginais;
+  if (periodo === "24h") dataLimite.setHours(dataLimite.getHours() - 24);
+  else if (periodo === "7d") dataLimite.setDate(dataLimite.getDate() - 7);
+  else if (periodo === "30d") dataLimite.setDate(dataLimite.getDate() - 30);
+  else if (periodo === "custom") {
+    const inicio = new Date(document.getElementById("data-inicio").value);
+    const fim = new Date(document.getElementById("data-fim").value);
+    if (isNaN(inicio) || isNaN(fim)) return pontosOriginais;
+    fim.setHours(23, 59, 59);
+    return pontosOriginais.filter(p => p.data >= inicio && p.data <= fim);
+  }
+  return pontosOriginais.filter(p => p.data >= dataLimite);
+}
+
+function renderizarHexagonos() {
   camadaHexagonos.clearLayers();
+  
+  const resolucao = parseInt(document.getElementById("resolucao").value);
+  const pontosFiltrados = filtrarPontos();
 
   const contagemPorCelula = {};
-  pontosOriginais.forEach(([lat, lng]) => {
-    const celula = h3.latLngToCell(lat, lng, resolucao);
+  pontosFiltrados.forEach(p => {
+    const celula = h3.latLngToCell(p.coord[0], p.coord[1], resolucao);
     contagemPorCelula[celula] = (contagemPorCelula[celula] || 0) + 1;
   });
 
   const celulas = Object.keys(contagemPorCelula);
-  if (celulas.length === 0) return;
   
-  const maxContagem = Math.max(...celulas.map(c => contagemPorCelula[c]));
-
-  celulas.forEach(celula => {
-    const contagem = contagemPorCelula[celula];
-    const limites = h3.cellToBoundary(celula); 
-    const cor = corPorIntensidade(contagem, maxContagem);
-
-    const poligono = L.polygon(limites, {
-      color: "#0D0D0D",
-      weight: 1,
-      fillColor: cor,
-      fillOpacity: 0.65
-    });
-
-    poligono.bindTooltip(`
-      <div class="hex-tooltip">
-        <strong>${contagem} registros</strong> nesta célula
-      </div>
-    `);
-
-    camadaHexagonos.addLayer(poligono);
-  });
-
-  document.getElementById("stat-total").innerText = pontosOriginais.length;
-  document.getElementById("stat-hexagonos").innerText = celulas.length;
-  document.getElementById("stat-pico").innerText = maxContagem;
-  
-  const legendaEscala = document.getElementById("legenda-escala");
-  legendaEscala.innerHTML = "";
-  [1, Math.round(maxContagem/2), maxContagem].forEach(val => {
-     const cor = corPorIntensidade(val, maxContagem);
-     legendaEscala.innerHTML += `<div class="legenda-escala"><div class="legenda-cor" style="background:${cor}"></div> <span>${val} registros</span></div>`;
-  });
-}
-
-const selectResolucao = document.getElementById("resolucao");
-selectResolucao.addEventListener("change", (e) => {
-  renderizarHexagonos(parseInt(e.target.value));
-});
-
-renderizarHexagonos(9);
-</script>
-
-</body>
-</html>
+  if (celulas.length === 0) {
