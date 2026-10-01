@@ -245,3 +245,74 @@ function filtrarRegistrosPorJanela() {
   if (tipoPeriodo === "todos") return TODOS_OS_REGISTROS;
   
   let limiteData = new Date();
+function filtrarRegistrosPorJanela() {
+const tipoPeriodo = document.getElementById("periodo").value;
+const agora = new Date();
+if (tipoPeriodo === "todos") return TODOS_OS_REGISTROS;
+let limiteData = new Date();
+if (tipoPeriodo === "24h") limiteData.setHours(agora.getHours() - 24);
+else if (tipoPeriodo === "7d") limiteData.setDate(agora.getDate() - 7);
+else if (tipoPeriodo === "30d") limiteData.setDate(agora.getDate() - 30);
+else if (tipoPeriodo === "custom") {
+const inicio = new Date(document.getElementById("data-inicio").value);
+const fim = new Date(document.getElementById("data-fim").value);
+if(isNaN(inicio) || isNaN(fim)) return TODOS_OS_REGISTROS;
+fim.setHours(23,59,59);
+return TODOS_OS_REGISTROS.filter(r => r.data >= inicio && r.data <= fim);
+}
+return TODOS_OS_REGISTROS.filter(r => r.data >= limiteData);
+}
+function renderizarHexagonos() {
+camadaHexagonos.clearLayers();
+const resolucao = parseInt(document.getElementById("resolucao").value);
+const registrosFiltrados = filtrarRegistrosPorJanela();
+const contagemPorCelula = {};
+registrosFiltrados.forEach(reg => {
+const celula = h3.latLngToCell(reg.coordenadas[0], reg.coordenadas[1], resolucao);
+contagemPorCelula[celula] = (contagemPorCelula[celula] || 0) + 1;
+});
+const celulas = Object.keys(contagemPorCelula);
+if (celulas.length === 0) {
+document.getElementById("stat-total").innerText = 0;
+document.getElementById("stat-hexagonos").innerText = 0;
+document.getElementById("stat-pico").innerText = 0;
+document.getElementById("legenda-max").innerText = "0";
+document.getElementById("detalhe-lista").innerHTML = 'Sem dados no período filtrado.';
+return;
+}
+const maxContagem = Math.max(...celulas.map(c => contagemPorCelula[c]));
+document.getElementById("legenda-max").innerText = maxContagem;
+let listaHtml = "";
+celulas.forEach(celula => {
+const contagem = contagemPorCelula[celula];
+const limites = h3.cellToBoundary(celula);
+const cor = corPorIntensidade(contagem, maxContagem);
+const pol = L.polygon(limites, {
+color: "#0D0D0D",
+weight: 1.5,
+fillColor: cor,
+fillOpacity: 0.75
+});
+pol.bindTooltip(<div class="hex-tooltip"> <strong>${contagem} registros</strong> nesta área </div>);
+camadaHexagonos.addLayer(pol);
+listaHtml += <div class="detalhe-item"> <span class="qtd">${contagem} relatos</span> <span style="color:var(--cinza); font-size:0.6rem;">Célula H3: ${celula.substring(0,12)}</span> </div>;
+});
+document.getElementById("stat-total").innerText = registrosFiltrados.length;
+document.getElementById("stat-hexagonos").innerText = celulas.length;
+document.getElementById("stat-pico").innerText = maxContagem;
+document.getElementById("detalhe-lista").innerHTML = listaHtml;
+}
+document.getElementById("resolucao").addEventListener("change", renderizarHexagonos);
+const selectPeriodo = document.getElementById("periodo");
+const customCampos = document.getElementById("periodo-custom");
+selectPeriodo.addEventListener("change", (e) => {
+if (e.target.value === "custom") {
+customCampos.style.display = "flex";
+} else {
+customCampos.style.display = "none";
+renderizarHexagonos();
+}
+});
+document.getElementById("aplicar-periodo").addEventListener("click", renderizarHexagonos);
+// Inicialização estável
+renderizarHexagonos();
