@@ -33,45 +33,22 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
   display:flex;align-items:center;justify-content:space-between;
   padding:16px 24px;background:var(--carvao);border-bottom:2px solid var(--grafite);
   position:relative;z-index:1000;
-  flex-wrap:wrap;gap:12px;
 }
 .logo{font-family:var(--display);font-size:1.1rem;color:var(--papel);display:flex;align-items:center;gap:.5rem;text-transform:uppercase}
 .logo .raio{color:var(--amarelo)}
-.controles{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.controles{display:flex;align-items:center;gap:14px}
 .controles label{font-family:var(--mono);font-size:.72rem;color:var(--cinza);text-transform:uppercase;letter-spacing:.05em}
-.controles select,.controles input[type="date"]{
+.controles select{
   background:var(--preto);color:var(--papel);border:1.5px solid var(--grafite);
   font-family:var(--mono);font-size:.8rem;padding:6px 10px;
 }
-.controles select:focus,.controles input[type="date"]:focus{outline:2px solid var(--amarelo)}
-.controles button{
-  background:var(--amarelo);color:var(--preto);border:none;
-  font-family:var(--mono);font-size:.75rem;font-weight:600;text-transform:uppercase;
-  padding:7px 12px;cursor:pointer;letter-spacing:.04em;
-}
-.controles button:hover{background:#fff}
+.controles select:focus{outline:2px solid var(--amarelo)}
 
-#periodo-custom{display:none;align-items:center;gap:8px;flex-wrap:wrap}
-#periodo-custom span{font-family:var(--mono);font-size:.72rem;color:var(--cinza)}
+#mapa{height:calc(100vh - 106px);width:100%}
 
-#mapa{height:calc(100vh - 106px);width:100%;background:var(--preto)}
-
-/* FILTRO MÁGICO: Transforma o OpenStreetMap claro em modo Dark escuro e profissional */
+/* FILTRO MÁGICO: Transforma as cores do OpenStreetMap padrão em um belíssimo modo Escuro */
 .leaflet-tile-container {
-    filter: invert(100%) hue-rotate(180deg) percentile(100%) contrast(90%) brightness(90%);
-}
-
-.leaflet-pane.heat-pane{ filter: blur(7px) saturate(1.15); }
-
-.hex-label{
-  font-family:var(--mono);font-weight:700;font-size:.78rem;
-  color:var(--preto);
-  display:flex;align-items:center;justify-content:center;
-  text-shadow:
-    0 0 4px rgba(255,255,255,.95),
-    0 0 4px rgba(255,255,255,.95),
-    0 0 8px rgba(255,255,255,.6);
-  pointer-events:none;
+    filter: invert(100%) hue-rotate(180deg) brightness(40%) contrast(130%) saturate(30%);
 }
 
 .legenda{
@@ -79,22 +56,16 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
   background:var(--carvao);border:2px solid var(--amarelo);
   padding:14px 18px;font-family:var(--mono);font-size:.72rem;
   box-shadow:6px 6px 0 rgba(0,0,0,.5);
-  max-width:250px;
 }
 .legenda-titulo{color:var(--amarelo);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;font-size:.68rem}
-.legenda-gradiente{
-  height:14px;width:100%;border-radius:2px;margin-bottom:6px;
-  background:linear-gradient(90deg,#3a2f00 0%, var(--amarelo) 55%, #FFF6CC 100%);
-  border:1px solid var(--grafite);
-}
-.legenda-escala-labels{display:flex;justify-content:space-between;font-size:.62rem;color:var(--cinza);margin-bottom:8px}
-.legenda-nota{color:var(--cinza);margin-top:8px;line-height:1.4}
-.legenda-periodo-ativo{color:var(--amarelo);margin-top:8px;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em}
+.legenda-escala{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.legenda-cor{width:16px;height:16px;flex-shrink:0}
+.legenda-nota{color:var(--cinza);margin-top:8px;max-width:220px;line-height:1.4}
 
 .placar{
   position:absolute;top:130px;right:24px;z-index:900;
   background:var(--preto);border:2px solid var(--amarelo);
-  width:280px;box-shadow:8px 8px 0 rgba(0,0,0,.55);
+  width:260px;box-shadow:8px 8px 0 rgba(0,0,0,.55);
 }
 .placar-head{background:var(--amarelo);color:var(--preto);font-family:var(--mono);font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;padding:8px 14px}
 .placar-body{padding:14px}
@@ -103,34 +74,12 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 .placar-label{font-family:var(--mono);font-size:.68rem;color:var(--cinza);text-transform:uppercase}
 .placar-valor{font-family:var(--display);font-size:1.3rem;color:var(--amarelo)}
 
-.detalhe{
-  position:absolute;top:calc(130px + 168px + 14px);right:24px;z-index:900;
-  background:var(--preto);border:2px solid var(--grafite);
-  width:280px;box-shadow:8px 8px 0 rgba(0,0,0,.4);
-  max-height:calc(100vh - 130px - 168px - 40px);
-  display:flex;flex-direction:column;
-}
-.detalhe-head{background:var(--grafite);color:var(--papel);font-family:var(--mono);font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;padding:8px 14px}
-.detalhe-lista{overflow-y:auto;padding:6px 0}
-.detalhe-item{
-  padding:8px 14px;border-bottom:1px solid var(--grafite);
-  font-family:var(--mono);font-size:.68rem;
-  display:flex;flex-direction:column;gap:2px;
-}
-.detalhe-item:last-child{border-bottom:none}
-.detalhe-item .qtd{color:var(--amarelo);font-family:var(--display);font-size:.9rem}
-.detalhe-item .quando{color:var(--cinza)}
-.detalhe-vazio{padding:14px;color:var(--cinza);font-family:var(--mono);font-size:.68rem}
-
 .hex-tooltip{font-family:var(--mono);font-size:.75rem}
 .hex-tooltip strong{color:var(--amarelo)}
-.hex-tooltip .quando{color:var(--cinza);display:block;margin-top:2px}
 
 @media (max-width:640px){
-  .placar,.detalhe{display:none}
-  .legenda{bottom:16px;left:16px;font-size:.65rem;padding:10px 12px;max-width:200px}
-  .topo{padding:12px 16px}
-  .controles{gap:10px}
+  .placar{display:none}
+  .legenda{bottom:16px;left:16px;font-size:.65rem;padding:10px 12px}
 }
 </style>
 </head>
@@ -140,21 +89,6 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 <header class="topo">
   <div class="logo"><span class="raio">⚡</span> Piscou Aqui — Mapa H3</div>
   <div class="controles">
-    <label for="periodo">Período</label>
-    <select id="periodo">
-      <option value="todos" selected>Todo o histórico</option>
-      <option value="24h">Últimas 24 horas</option>
-      <option value="7d">Últimos 7 dias</option>
-      <option value="30d">Últimos 30 dias</option>
-      <option value="custom">Personalizado…</option>
-    </select>
-    <span id="periodo-custom">
-      <input type="date" id="data-inicio">
-      <span>até</span>
-      <input type="date" id="data-fim">
-      <button id="aplicar-periodo">Aplicar</button>
-    </span>
-
     <label for="resolucao">Granularidade</label>
     <select id="resolucao">
       <option value="8">Bairro (H3 res. 8, ~0,7 km²)</option>
@@ -167,15 +101,9 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 <div id="mapa"></div>
 
 <aside class="legenda">
-  <div class="legenda-titulo">Intensidade por hexágono</div>
-  <div class="legenda-gradiente"></div>
-  <div class="legenda-escala-labels">
-    <span id="legenda-min">1</span>
-    <span id="legenda-meio">morno</span>
-    <span id="legenda-max">—</span>
-  </div>
-  <div class="legenda-nota">O número dentro de cada célula é a contagem de registros. A localização exata de ninguém aparece no mapa público — só a agregação por área.</div>
-  <div class="legenda-periodo-ativo" id="legenda-periodo-ativo"></div>
+  <div class="legenda-titulo">Registros por hexágono</div>
+  <div id="legenda-escala"></div>
+  <div class="legenda-nota">Cada célula agrega todos os registros dentro daquela área — a localização exata de ninguém aparece no mapa público.</div>
 </aside>
 
 <aside class="placar">
@@ -187,31 +115,137 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
   </div>
 </aside>
 
-<aside class="detalhe">
-  <div class="detalhe-head">Detalhe por hexágono</div>
-  <div class="detalhe-lista" id="detalhe-lista">
-    <div class="detalhe-vazio">Sem dados ainda.</div>
-  </div>
-</aside>
-
 <script>
-const map = L.map('mapa', {
-    center: [-20.3155, -40.3128],
-    zoom: 12,
-    zoomControl: false
+const CENTRO = [-20.2932, -40.2963]; // Praia do Canto, Vitória/ES
+const ZOOM_INICIAL = 15;
+
+function espalhar(base, n, raio) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const r = Math.random() * raio;
+    pts.push([
+      base[0] + Math.cos(ang) * r,
+      base[1] + Math.sin(ang) * r * 1.15
+    ]);
+  }
+  return pts;
+}
+
+const eventoForte = espalhar([-20.2921, -40.2985], 42, 0.0022);   
+const eventoMedio = espalhar([-20.2955, -40.2930], 24, 0.0020);   
+const ruidoDifuso = espalhar(CENTRO, 30, 0.0060);                 
+
+const TODOS_OS_PONTOS = [...eventoForte, ...eventoMedio, ...ruidoDifuso];
+
+const mapa = L.map("mapa", { zoomControl: true, scrollWheelZoom: true })
+  .setView(CENTRO, ZOOM_INICIAL);
+
+// BASE DE MAPAS PÚBLICA DO OPENSTREETMAP (Correção sem chave de API necessária)
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+  maxZoom: 19
+}).addTo(mapa);
+
+let camadaHexagonos = L.layerGroup().addTo(mapa);
+
+function corPorIntensidade(contagem, maxContagem) {
+  const t = Math.min(contagem / maxContagem, 1);
+  if (t < 0.5) {
+    const p = t / 0.5;
+    return interpolar("#3a2f00", "#FFD400", p);
+  } else {
+    const p = (t - 0.5) / 0.5;
+    return interpolar("#FFD400", "#FFF6CC", p);
+  }
+}
+
+function interpolar(corA, corB, p) {
+  const a = hexParaRgb(corA), b = hexParaRgb(corB);
+  const r = Math.round(a[0] + (b[0]-a[0])*p);
+  const g = Math.round(a[1] + (b[1]-a[1])*p);
+  const bl = Math.round(a[2] + (b[2]-a[2])*p);
+  return `rgb(${r},${g},${bl})`;
+}
+
+function hexParaRgb(hex){
+  hex = hex.replace('#','');
+  return [parseInt(hex.substring(0,2),16), parseInt(hex.substring(2,4),16), parseInt(hex.substring(4,6),16)];
+}
+
+function renderizarHexagonos(resolucao) {
+  camadaHexagonos.clearLayers();
+
+  const contagemPorCelula = {};
+  TODOS_OS_PONTOS.forEach(([lat, lng]) => {
+    const celula = h3.latLngToCell(lat, lng, resolucao);
+    contagemPorCelula[celula] = (contagemPorCelula[celula] || 0) + 1;
+  });
+
+  const celulas = Object.keys(contagemPorCelula);
+  if (celulas.length === 0) {
+     atualizarPlacares(0, 0, 0);
+     return;
+  }
+  
+  const maxContagem = Math.max(...celulas.map(c => contagemPorCelula[c]));
+
+  celulas.forEach(celula => {
+    const contagem = contagemPorCelula[celula];
+    const limites = h3.cellToBoundary(celula); 
+    const cor = corPorIntensidade(contagem, maxContagem);
+
+    const poligono = L.polygon(limites, {
+      color: "#0D0D0D",
+      weight: 1,
+      fillColor: cor,
+      fillOpacity: 0.65
+    });
+
+    poligono.bindTooltip(`
+      <div class="hex-tooltip">
+        <strong>${contagem} registros</strong> nesta célula
+      </div>
+    `);
+
+    camadaHexagonos.addLayer(poligono);
+  });
+
+  atualizarPlacares(TODOS_OS_PONTOS.length, celulas.length, maxContagem);
+  construirLegenda(maxContagem);
+}
+
+function atualizarPlacares(total, totalHex, pico) {
+  document.getElementById("stat-total").innerText = total;
+  document.getElementById("stat-hexagonos").innerText = totalHex;
+  document.getElementById("stat-pico").innerText = pico;
+}
+
+function construirLegenda(maxContagem) {
+  const legendaEscala = document.getElementById("legenda-escala");
+  legendaEscala.innerHTML = "";
+  
+  const passos = 5;
+  for(let i=0; i<=passos; i++) {
+     const t = i / passos;
+     const valor = Math.round(t * maxContagem);
+     const cor = corPorIntensidade(valor, maxContagem);
+     
+     const item = document.createElement("div");
+     item.className = "legenda-escala";
+     item.innerHTML = `<div class="legenda-cor" style="background:${cor}"></div> <span>${valor} registros</span>`;
+     legendaEscala.appendChild(item);
+  }
+}
+
+// Inicialização e Eventos
+const selectResolucao = document.getElementById("resolucao");
+selectResolucao.addEventListener("change", (e) => {
+  renderizarHexagonos(parseInt(e.target.value));
 });
 
-L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-// MAPA DO OPENSTREETMAP 100% GRATUITO E INFALÍVEL PARA PRODUÇÃO
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
-}).addTo(map);
-
-map.createPane('heatPane');
-map.getPane('heatPane').style.zIndex = 400;
-map.getPane('heatPane').classList.add('heat-pane');
+// Renderiza a primeira onda de dados
+renderizarHexagonos(9);
 </script>
 
 </body>
