@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Piscou Aqui — Mapa de Calor Hexagonal (H3)</title>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://googleapis.com" rel="stylesheet">
+<link rel="preconnect" href="https://googleapis.com">
+<link href="https://googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="libs-final/leaflet.css">
 <script src="libs-final/leaflet.js"></script>
@@ -56,9 +56,9 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 
 #mapa{height:calc(100vh - 106px);width:100%;background:var(--preto)}
 
-/* FILTRO ISOLADO: Aplica o modo escuro estritamente no mapa de fundo, sem estragar as cores do calor */
-.mapa-escuro-container {
-    filter: invert(100%) hue-rotate(180deg) brightness(35%) contrast(120%) saturate(20%) !important;
+/* FILTRO REVISADO: Escurece as ruas do fundo sem afetar o brilho e opacidade do calor */
+.leaflet-container .leaflet-tile-pane img {
+    filter: invert(100%) hue-rotate(180deg) brightness(40%) contrast(120%) saturate(25%) !important;
 }
 
 .legenda{
@@ -181,7 +181,7 @@ body{background:var(--preto);font-family:var(--corpo);color:var(--papel);height:
 const CENTRO = [-20.2932, -40.2963]; 
 const ZOOM_INICIAL = 15;
 
-// Geração de dados de simulação com data atribuída para testar o filtro de Período
+// Correção matemática na geração dos pontos para evitar que o código quebre
 function espalharComData(base, n, raio, diasAtras) {
   const pts = [];
   const agora = new Date();
@@ -198,25 +198,18 @@ function espalharComData(base, n, raio, diasAtras) {
   return pts;
 }
 
-// 96 registros distribuídos em linhas de tempo diferentes para validação do filtro
-const eventoForte = espalharComData([-20.2921, -40.2985], 42, 0.0022, 0.2); // Hoje (Últimas 24h)
-const eventoMedio = espalharComData([-20.2955, -40.2930], 24, 0.0020, 4);   // Há 4 dias (Últimos 7 dias)
-const ruidoDifuso = espalharComData(CENTRO, 30, 0.0060, 20);                // Há 20 dias (Últimos 30 dias)
+const eventoForte = espalharComData([-20.2921, -40.2985], 42, 0.0022, 0.2); 
+const eventoMedio = espalharComData([-20.2955, -40.2930], 24, 0.0020, 4);   
+const ruidoDifuso = espalharComData(CENTRO, 30, 0.0060, 20);                
 
 const TODOS_OS_REGISTROS = [...eventoForte, ...eventoMedio, ...ruidoDifuso];
 
 const mapa = L.map("mapa", { zoomControl: true, scrollWheelZoom: true })
   .setView(CENTRO, ZOOM_INICIAL);
 
-// Criação do painel isolado para aplicar o filtro preto nas ruas sem desbotar o calor amarelo
-const paneFundo = mapa.createPane('tilePaneCustom');
-paneFundo.style.zIndex = 200;
-paneFundo.classList.add('mapa-escuro-container');
-
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-  maxZoom: 19,
-  pane: 'tilePaneCustom'
+  maxZoom: 19
 }).addTo(mapa);
 
 let camadaHexagonos = L.layerGroup().addTo(mapa);
@@ -241,3 +234,14 @@ function interpolar(corA, corB, p) {
 }
 
 function hexParaRgb(hex){
+  hex = hex.replace('#','');
+  return [parseInt(hex.substring(0,2),16), parseInt(hex.substring(2,4),16), parseInt(hex.substring(4,6),16)];
+}
+
+function filtrarRegistrosPorJanela() {
+  const tipoPeriodo = document.getElementById("periodo").value;
+  const agora = new Date();
+  
+  if (tipoPeriodo === "todos") return TODOS_OS_REGISTROS;
+  
+  let limiteData = new Date();
